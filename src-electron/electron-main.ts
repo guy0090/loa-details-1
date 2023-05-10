@@ -18,6 +18,7 @@ import {
   createDamageMeterWindow,
   createMainWindow,
   createPrelauncherWindow,
+  createDiscordLoginWindow,
 } from "./electron-windows";
 import {
   getLogData,
@@ -58,7 +59,8 @@ const store = new Store();
 
 let prelauncherWindow: BrowserWindow | null,
   mainWindow: BrowserWindow | null,
-  damageMeterWindow: BrowserWindow | null;
+  damageMeterWindow: BrowserWindow | null,
+  discordLoginWindow: BrowserWindow | null;
 let tray = null;
 
 const appLockKey = { myKey: "loa-details" };
@@ -302,7 +304,6 @@ const ipcFunctions: {
   "save-settings": (event, arg: { value: string }) => {
     appSettings = JSON.parse(arg.value);
     saveSettings(arg.value);
-
     updateShortcuts(appSettings);
 
     mainWindow?.webContents.send("on-settings-change", appSettings);
@@ -350,6 +351,26 @@ const ipcFunctions: {
   },
   "open-link": (event, arg) => {
     shell.openExternal(arg.value);
+  },
+  "open-discord-login": () => {
+    console.log("open-discord-login", typeof discordLoginWindow)
+    if (discordLoginWindow) return
+    console.log("open-discord-login", typeof discordLoginWindow)
+    discordLoginWindow = createDiscordLoginWindow(appSettings);
+    discordLoginWindow?.on("closed", () => {
+      discordLoginWindow = null
+      const user = appSettings.uploads.user
+      const token = appSettings.uploads.jwt
+
+      if (user && token) {
+        saveSettings(appSettings);
+        mainWindow?.webContents.send("on-settings-change", appSettings);
+        damageMeterWindow?.webContents.send("on-settings-change", appSettings);
+        mainWindow?.webContents.send("discord-login-success", { user, token })
+      } else {
+        mainWindow?.webContents.send("discord-login-failure")
+      }
+    })
   },
   "save-screenshot": async (event, arg) => {
     await saveScreenshot(arg.value);

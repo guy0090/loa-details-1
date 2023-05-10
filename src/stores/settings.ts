@@ -34,18 +34,27 @@ export const useSettingsStore = defineStore("settings", {
       },
       uploads: {
         uploadLogs: false,
-        uploadKey: "",
+        jwt: "",
+        user: undefined,
         api: {
           value: process.env.UPLOADS_API_URL,
           defaultValue: process.env.UPLOADS_API_URL,
+        },
+        ingest: {
+          value: process.env.UPLOADS_INGEST_URL,
+          defaultValue: process.env.UPLOADS_INGEST_URL,
         },
         endpoint: {
           value: process.env.UPLOADS_ENDPOINT,
           defaultValue: process.env.UPLOADS_ENDPOINT,
         },
         site: {
-          value: process.env.UPLOADS_LOGIN_URL,
-          defaultValue: process.env.UPLOADS_LOGIN_URL,
+          value: process.env.UPLOADS_SITE_URL,
+          defaultValue: process.env.UPLOADS_SITE_URL,
+        },
+        discordOAuthUrl: {
+          value: process.env.UPLOADS_DISCORD_OAUTH_URL,
+          defaultValue: process.env.UPLOADS_DISCORD_OAUTH_URL,
         },
         openOnUpload: false,
         uploadUnlisted: true,

@@ -3,6 +3,7 @@ import log from "electron-log";
 import { StatusEffectBuffTypeFlags } from "meter-core/logger/data";
 import { classes } from "src/constants/classes";
 import { merge } from "lodash"; //TODO: when we rework, remove lodash (required for merge)
+import { User } from "./uploads/oAuthUtils";
 
 const store = new Store();
 
@@ -69,8 +70,13 @@ export type Settings = {
   };
   uploads: {
     uploadLogs: boolean;
-    uploadKey: string;
+    jwt: string;
+    user?: User;
     api: {
+      value?: string;
+      defaultValue?: string;
+    };
+    ingest: {
       value?: string;
       defaultValue?: string;
     };
@@ -79,6 +85,10 @@ export type Settings = {
       defaultValue?: string;
     };
     site: {
+      value?: string;
+      defaultValue?: string;
+    };
+    discordOAuthUrl: {
       value?: string;
       defaultValue?: string;
     };
@@ -158,18 +168,27 @@ const defaultSettings: Settings = {
   },
   uploads: {
     uploadLogs: false,
-    uploadKey: "",
+    jwt: "",
+    user: undefined,
     api: {
       value: process.env.UPLOADS_API_URL,
       defaultValue: process.env.UPLOADS_API_URL,
+    },
+    ingest: {
+      value: process.env.UPLOADS_INGEST_URL,
+      defaultValue: process.env.UPLOADS_INGEST_URL,
     },
     endpoint: {
       value: process.env.UPLOADS_ENDPOINT,
       defaultValue: process.env.UPLOADS_ENDPOINT,
     },
     site: {
-      value: process.env.UPLOADS_LOGIN_URL,
-      defaultValue: process.env.UPLOADS_LOGIN_URL,
+      value: process.env.UPLOADS_SITE_URL,
+      defaultValue: process.env.UPLOADS_SITE_URL,
+    },
+    discordOAuthUrl: {
+      value: process.env.UPLOADS_DISCORD_OAUTH_URL,
+      defaultValue: process.env.UPLOADS_DISCORD_OAUTH_URL,
     },
     openOnUpload: false,
     uploadUnlisted: true,

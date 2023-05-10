@@ -60,7 +60,9 @@ module.exports = configure(function (/* ctx */) {
       env: {
         UPLOADS_API_URL: "https://api.lail.ai",
         UPLOADS_LOGIN_URL: "https://lail.ai",
-        UPLOADS_ENDPOINT: "/logs/upload",
+        UPLOADS_INGEST_URL: "https://ingest.lail.ai",
+        UPLOADS_ENDPOINT: "/logs",
+        UPLOADS_DISCORD_OAUTH_URL: "https://discord.com/api/oauth2/authorize?client_id=1086681441955483739&redirect_uri=http%3A%2F%2Flocalhost%3A7070%2Flogin&response_type=code&scope=identify",
       },
       devtool: "source-map",
       // vueRouterBase,

@@ -2,6 +2,37 @@
   <q-list>
     <q-item-label header>Log Uploads</q-item-label>
 
+    <q-item tag="label" v-if="uploaderStore.getToken && uploaderStore.getUser" :clickable="false" :focused="false" :manual-focus="true">
+      <q-item-section side top>
+        <q-avatar size="90px">
+          <q-img :src="getUserAvatar(uploaderStore.getUser)" />
+        </q-avatar>
+      </q-item-section>
+      <q-item-section>
+        <q-item-label class="text-h5 q-mb-sm">{{ uploaderStore.getUser.discordUsername }}#{{ uploaderStore.getUser.discriminator }}</q-item-label>
+        <q-item-label caption>
+          <q-btn size="small" color="red" @click="logout()">
+            <q-icon name="logout" />
+            &nbsp;&nbsp;Logout
+          </q-btn>
+        </q-item-label>
+      </q-item-section>
+    </q-item>
+    <q-item v-else>
+      <q-item-section side top>
+        <q-btn color="indigo" size="large" @click="openDiscordLogin()" :disable="uploaderStore.isLoggingIn">
+          <q-icon name="discord" />
+          &nbsp;&nbsp;Login
+        </q-btn>
+      </q-item-section>
+      <q-item-section>
+        <q-item-label>Login with Discord</q-item-label>
+        <q-item-label caption>
+          In order to upload logs, you must login with Discord.
+        </q-item-label>
+      </q-item-section>
+    </q-item>
+
     <q-item tag="label">
       <q-item-section side top>
         <q-checkbox v-model="settingsStore.settings.uploads.openOnUpload" />
@@ -16,7 +47,7 @@
       </q-item-section>
     </q-item>
 
-    <q-item tag="label">
+    <q-item tag="label" style="display: none!important">
       <q-item-section side top>
         <q-checkbox v-model="settingsStore.settings.uploads.uploadUnlisted" />
       </q-item-section>
@@ -55,11 +86,11 @@
 
     <q-item
       tag="label"
-      :disable="settingsStore.settings.uploads.uploadKey.length !== 32"
+      :disable="!(uploaderStore.getUser && uploaderStore.getToken)"
     >
       <q-item-section side top>
         <q-checkbox
-          :disable="settingsStore.settings.uploads.uploadKey.length !== 32"
+          :disable="!(uploaderStore.getUser && uploaderStore.getToken)"
           v-model="settingsStore.settings.uploads.uploadLogs"
         />
       </q-item-section>
@@ -67,43 +98,8 @@
       <q-item-section>
         <q-item-label>Upload Logged DPS</q-item-label>
         <q-item-label caption>
-          Enable to upload your sessions to the web. Requires the "Upload Key"
-          to be set.
+          Enable to upload your sessions to the web. Requires you to be logged in.
         </q-item-label>
-      </q-item-section>
-    </q-item>
-
-    <q-item tag="label">
-      <q-item-section left>
-        <q-item-label>Upload Key</q-item-label>
-        <q-item-label caption>
-          An API key is required to upload logged sessions.<br />
-          Login at
-          <span
-            @click="openSite(settingsStore.settings.uploads.site.value)"
-            class="text-primary"
-            style="cursor: pointer"
-            >{{ settingsStore.settings.uploads.site.value }}</span
-          >
-          to get one.
-        </q-item-label>
-      </q-item-section>
-      <q-item-section right>
-        <q-input
-          v-model="uploadKey"
-          :type="isPwd ? 'password' : 'text'"
-          label="API Key"
-          clearable
-          @clear="uploadKey = ''"
-        >
-          <template v-slot:append>
-            <q-icon
-              :name="isPwd ? 'visibility_off' : 'visibility'"
-              class="cursor-pointer"
-              @click="isPwd = !isPwd"
-            />
-          </template>
-        </q-input>
       </q-item-section>
     </q-item>
 
@@ -128,9 +124,13 @@
     </q-item>
 
     <div v-if="showAdvanced" style="margin-top: 25px !important">
-      <q-item tag="label" :clickable="false">
+      <q-item-label v-if="(uploaderStore.getUser && uploaderStore.getToken)" class="text-h5 q-my-md">
+        <q-icon name="warning" color="red" /> You must be logged out to modify these settings.
+      </q-item-label>
+
+      <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
         <q-item-section left>
-          <q-item-label>Upload Server&nbsp; </q-item-label>
+          <q-item-label>API Server&nbsp; </q-item-label>
           <q-item-label caption> URL to API server. </q-item-label>
         </q-item-section>
         <q-item-section right>
@@ -141,12 +141,32 @@
             clearable
             clear-icon="refresh"
             @clear="resetURL('api')"
+            :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
           >
           </q-input>
         </q-item-section>
       </q-item>
 
-      <q-item tag="label" :clickable="false">
+      <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
+        <q-item-section left>
+          <q-item-label>Ingest Server&nbsp; </q-item-label>
+          <q-item-label caption> URL to Ingest server. </q-item-label>
+        </q-item-section>
+        <q-item-section right>
+          <q-input
+            v-model="settingsStore.settings.uploads.ingest.value"
+            type="text"
+            label="Ingest Server"
+            clearable
+            clear-icon="refresh"
+            @clear="resetURL('ingest')"
+            :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
+          >
+          </q-input>
+        </q-item-section>
+      </q-item>
+
+      <q-item tag="label" :clickable="false" style="display: none!important;">
         <q-item-section left>
           <q-item-label>Upload Endpoint&nbsp; </q-item-label>
           <q-item-label caption>
@@ -166,7 +186,7 @@
         </q-item-section>
       </q-item>
 
-      <q-item tag="label" :clickable="false">
+      <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
         <q-item-section left>
           <q-item-label>Frontend&nbsp; </q-item-label>
           <q-item-label caption> URL to frontend. </q-item-label>
@@ -179,6 +199,26 @@
             clearable
             clear-icon="refresh"
             @clear="resetURL('site')"
+            :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
+          >
+          </q-input>
+        </q-item-section>
+      </q-item>
+
+      <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
+        <q-item-section left>
+          <q-item-label>Discord Redirect URL&nbsp; </q-item-label>
+          <q-item-label caption> URL for redirect during OAuth2 login. Must be same as configured on API. </q-item-label>
+        </q-item-section>
+        <q-item-section right>
+          <q-input
+            v-model="settingsStore.settings.uploads.discordOAuthUrl.value"
+            type="text"
+            label="Redirect URL"
+            clearable
+            clear-icon="refresh"
+            @clear="resetURL('discordOAuthUrl')"
+            :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
           >
           </q-input>
         </q-item-section>
@@ -188,29 +228,52 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref } from "vue";
 import { useSettingsStore } from "src/stores/settings";
+import { useUploaderStore } from "src/stores/uploaderStore";
+
+const uploaderStore = useUploaderStore();
 const settingsStore = useSettingsStore();
 
-const isPwd = ref(true);
-const uploadKey = ref("");
 const showAdvanced = ref(false);
 
-window.messageApi.receive("settings-changed", (value) => {
+// Why isnt this reactive?
+// const loggedIn = ref(uploaderStore.getToken && uploaderStore.getUser)
+
+window.messageApi.receive("on-settings-change", (value) => {
   settingsStore.loadSettings(value);
+
+  // Update uploader store
+  uploaderStore.setToken(value.uploads.jwt)
+  uploaderStore.setUser(value.uploads.user)
+
+  if (value.uploads.jwt && value.uploads.user) uploaderStore.setLoggingIn(false)
 });
 
-watch(uploadKey, (newVal, oldVal) => {
-  if (newVal.length !== 32) settingsStore.settings.uploads.uploadLogs = false;
-  settingsStore.settings.uploads.uploadKey = newVal;
+window.messageApi.receive("discord-login-success", (value) => {
+  uploaderStore.setLoggingIn(false)
+
+  uploaderStore.setToken(settingsStore.settings.uploads.jwt)
+  uploaderStore.setUser(settingsStore.settings.uploads.user)
+});
+
+window.messageApi.receive("discord-login-failure", () => {
+  uploaderStore.setLoggingIn(false)
+
+  uploaderStore.setToken(settingsStore.settings.uploads.jwt)
+  uploaderStore.setUser(settingsStore.settings.uploads.user)
 });
 
 onMounted(() => {
-  uploadKey.value = settingsStore.settings.uploads.uploadKey;
+  // Update uploader store
+  uploaderStore.setToken(settingsStore.settings.uploads.jwt)
+  uploaderStore.setUser(settingsStore.settings.uploads.user)
+
+  console.log(settingsStore.settings.uploads)
 });
 
 /**
- * @param {'api' | 'site' | 'endpoint'} type
+ * @param {'api' | 'site' | 'ingest' | 'discordOAuthUrl'} type
  */
 function resetURL(type) {
   settingsStore.settings.uploads[type].value =
@@ -222,5 +285,34 @@ function openSite(url) {
     message: "open-link",
     value: url,
   });
+}
+
+function openDiscordLogin() {
+  uploaderStore.setLoggingIn(true)
+  window.messageApi.send("window-to-main", {
+    message: "open-discord-login",
+  });
+}
+
+function getUserAvatar(user) {
+  if (!user) return "https://cdn.discordapp.com/embed/avatars/0.png"
+
+  const discordCdn = "https://cdn.discordapp.com/"
+  let avatar = ""
+  if (!user.avatar) {
+    avatar = `${discordCdn}/embed/avatars/${parseInt(user.discriminator) % 5}.png`
+  } else {
+    const isGIF = user.avatar.startsWith("a_")
+    avatar = `${discordCdn}avatars/${user.discordId}/${user.avatar}${isGIF ? ".gif" : ".png"}`
+  }
+
+  return avatar
+}
+
+function logout() {
+  uploaderStore.logout()
+  settingsStore.settings.uploads.uploadLogs = false
+  settingsStore.settings.uploads.user = undefined
+  settingsStore.settings.uploads.jwt = ""
 }
 </script>

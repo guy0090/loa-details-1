@@ -242,7 +242,7 @@
         <q-btn
           flat
           size="sm"
-          :disabled="settingsStore.settings.uploads.uploadKey.length != 32"
+          :disabled="settingsStore.settings.uploads.jwt?.length === 0"
           :label="`UPLOADING: ${
             settingsStore.settings.uploads.uploadLogs ? ' ON' : ' OFF'
           }`"

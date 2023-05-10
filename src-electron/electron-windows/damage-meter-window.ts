@@ -3,7 +3,7 @@ import log from "electron-log";
 import type { GameState } from "meter-core/logger/data";
 import path from "path";
 import { Settings } from "../util/app-settings";
-import { upload } from "../util/uploads";
+import { StatusCode, upload } from "../util/uploads/uploader";
 import { initWindow } from "../util/window-init";
 import { Parser } from "meter-core/logger/parser";
 
@@ -54,35 +54,26 @@ export function createDamageMeterWindow(
     try {
       damageMeterWindow?.webContents.send("pcap-on-reset-state", "1");
 
-      const uploadsEnabled = appSettings.uploads.uploadLogs;
-      log.debug("uploadsEnabled", uploadsEnabled);
-      if (uploadsEnabled) {
-        log.info("Starting an upload");
-
-        const openInBrowser = appSettings.uploads.openOnUpload;
-
-        upload(state, appSettings)
-          .then((response) => {
-            if (!response) return;
-
-            damageMeterWindow?.webContents.send("uploader-message", {
-              failed: false,
-              message: "Encounter uploaded",
-            });
-
-            if (openInBrowser) {
-              const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
-              shell.openExternal(url);
-            }
-          })
-          .catch((e) => {
-            log.error(e);
-            damageMeterWindow?.webContents.send("uploader-message", {
-              failed: true,
-              message: e.message,
-            });
+      upload(state, appSettings)
+        .then((response) => {
+          if (!response || response.code !== StatusCode.SUCCESS) return;
+          damageMeterWindow?.webContents.send("uploader-message", {
+            failed: false,
+            message: "Encounter uploaded",
           });
-      }
+          // if (openInBrowser) {
+          //   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
+          //   shell.openExternal(url);
+          // }
+        })
+        .catch((e) => {
+          log.error(e);
+          //damageMeterWindow?.webContents.send("uploader-message", {
+          //  failed: true,
+          //  message: e.message,
+          //});
+        });
+
     } catch (e) {
       log.error(e);
     }
