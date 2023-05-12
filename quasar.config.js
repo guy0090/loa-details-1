@@ -60,10 +60,7 @@ module.exports = configure(function (/* ctx */) {
       env: {
         UPLOADS_API_URL: "https://api.dev.lail.ai",
         UPLOADS_SITE_URL: "https://dev.lail.ai",
-        UPLOADS_INGEST_URL: "http://ingest.dev.lail.ai",
-        // UPLOADS_API_URL: "http://localhost:8080",
-        // UPLOADS_SITE_URL: "http://localhost:7070",
-        // UPLOADS_INGEST_URL: "http://localhost:9090",
+        UPLOADS_INGEST_URL: "https://ingest.dev.lail.ai",
         UPLOADS_DISCORD_CLIENT_ID: "1086681441955483739",
         UPLOADS_DISCORD_REDIRECT_URL: "https://app.lail.ai/login",
       },

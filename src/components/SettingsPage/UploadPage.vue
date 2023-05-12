@@ -108,6 +108,24 @@
       </q-item-section>
     </q-item>
 
+    <q-item tag="label">
+      <q-item-section side top>
+        <q-checkbox
+          v-model="settingsStore.settings.uploads.saveCopy"
+        />
+      </q-item-section>
+
+      <q-item-section>
+        <q-item-label>Save Copy</q-item-label>
+        <q-item-label caption>
+          Enable to save a copy of your upload locally.
+          <span class="text-primary">
+            {{ (settingsStore.settings.general.customLogPath || "Documents/Lost Ark Logs") + "/uploads" }}
+          </span>
+        </q-item-label>
+      </q-item-section>
+    </q-item>
+
     <q-separator spaced />
 
     <q-item-label header class="q-pb-none">Uploading FAQ</q-item-label>

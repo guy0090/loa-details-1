@@ -200,6 +200,7 @@ export class CustomEntity implements Entity {
   npcId: number;
   name: string;
   classId: number;
+  partyId?: string;
   isBoss: boolean;
   isPlayer: boolean;
   isEsther?: boolean;
@@ -235,6 +236,7 @@ export class CustomEntity implements Entity {
     this.npcId = entity.npcId;
     this.name = entity.name;
     this.classId = entity.classId;
+    this.partyId = entity.partyId;
     this.isBoss = entity.isBoss;
     this.isPlayer = entity.isPlayer;
     this.isEsther = entity.isEsther;
