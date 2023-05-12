@@ -1,3 +1,4 @@
+import log from "electron-log";
 import { mainFolder } from "../directories";
 import fs from "fs";
 import path from "path";
@@ -5,56 +6,46 @@ import * as Data from "meter-core/logger/data";
 import { Settings } from "../app-settings";
 import zlib from "zlib";
 import { randomUUID } from "crypto";
-import { Upload } from "./data";
+import { Upload, UploadResult } from "./data";
+import {
+  BossNotDeadException,
+  CompressionFailedException,
+  FailedCreateUploadDirException,
+  FightNotStartedException,
+  InvalidIngestUrlException,
+  NoAuthTokenException,
+  NoBossEntityException,
+  UnexpectedErrorException,
+  UploaderException,
+} from "./exceptions";
+import axios, { AxiosRequestConfig, isAxiosError } from "axios";
 
-export enum StatusCode {
-  SUCCESS = 0,
-  IGNORED = 1,
-  ERROR = 2,
-};
 
-export interface UploadResult {
-  code: StatusCode;
-  id?: string;
-};
-
-export const tryCreateDir = () => {
-  if (!fs.existsSync(path.join(mainFolder, "uploads"))) {
-    fs.mkdirSync(path.join(mainFolder, "uploads"));
+/**
+ * Creates the uploads directory if it doesn't exist.
+ */
+export const tryCreateUploadDir = () => {
+  try {
+    if (!fs.existsSync(path.join(mainFolder, "uploads"))) {
+      fs.mkdirSync(path.join(mainFolder, "uploads"));
+    }
+  } catch (e) {
+    throw new FailedCreateUploadDirException(e as Error);
   }
-}
-
-export const upload = async (
-  sessionLog: Data.GameState,
-  _appSettings: Settings
-): Promise<UploadResult> => {
-  tryCreateDir();
-  if (sessionLog.entities.size === 0 || !sessionLog.currentBoss) return { code: StatusCode.IGNORED };
-
-  const uploadData = new Upload(sessionLog);
-  const compressed = await gzipCompress(JSON.stringify(uploadData));
-
-  fs.writeFileSync(
-    path.join(mainFolder, "uploads", `${randomUUID()}.json.gz`),
-    compressed,
-    "utf8"
-  );
-
-  return { code: StatusCode.ERROR, id: "test" };
 };
 
 
 /**
  * Compress a string with gzip compression.
- * @param {string} string The string to compress
- * @returns {Promise<Buffer>} The compressed string
+ * @param data The string to compress
+ * @returns The compressed string
  */
-const gzipCompress = (string: string, encoding = "utf8"): Promise<Buffer> => {
+const gzipCompress = (data: string, encoding = "utf8"): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
-    const buffer = Buffer.from(string, encoding as BufferEncoding);
+    const buffer = Buffer.from(data, encoding as BufferEncoding);
     zlib.gzip(buffer, (err, result) => {
       if (err) {
-        reject(err);
+        reject(new CompressionFailedException(err));
       } else {
         resolve(result);
       }
@@ -63,4 +54,108 @@ const gzipCompress = (string: string, encoding = "utf8"): Promise<Buffer> => {
 };
 
 
+/**
+ * Preprocesses the session log into a format that can be uploaded.
+ *
+ * Most processing of entities is done in the {@link Upload} class.
+ *
+ * @param sessionLog The session log to preprocess
+ * @returns The preprocessed upload data
+ */
+export const preprocess = (sessionLog: Data.GameState): Upload => {
+  if (sessionLog.fightStartedOn === 0) {
+    throw new FightNotStartedException();
+  }
 
+  if (sessionLog.entities.size === 0 || !sessionLog.currentBoss) {
+    throw new NoBossEntityException();
+  }
+
+  const upload = new Upload(sessionLog);
+  const boss = upload.entities.find((e) => e.id === upload.currentBoss);
+  if (!boss || boss.currentHp > 0) throw new BossNotDeadException();
+
+  return upload;
+};
+
+
+export const createRequestOptions = (
+  url: string,
+  data: Buffer,
+  inflatedSize: number,
+  token: string
+): AxiosRequestConfig => {
+  return {
+    url: url + "/logs",
+    method: "post",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Length": data.length,
+      "Content-Encoding": "gzip",
+      "X-Inflated-Length": inflatedSize,
+      "Authorization": `Bearer ${token}`
+    },
+    data,
+  }
+}
+
+
+/**
+ * Uploads a game state to the server.
+ *
+ * Logs are preprocessed before being uploaded and rejected depending on the
+ * result of the preprocessing. Optionally, copies of the upload are also saved
+ * locally.
+ *
+ * @throws UploaderException if an error occurs while uploading
+ *
+ * @param sessionLog The game state to upload
+ * @param appSettings The app settings
+ *
+ * @returns The status of the upload
+ */
+export const upload = async (
+  sessionLog: Data.GameState,
+  appSettings: Settings
+): Promise<UploadResult> => {
+  try {
+    const token = appSettings.uploads.jwt;
+    if (!token || token.length === 0) {
+      return new UploadResult(new NoAuthTokenException());
+    }
+    const ingestUrl = appSettings.uploads.ingest.value;
+    if (!ingestUrl || ingestUrl.length === 0) {
+      return new UploadResult(new InvalidIngestUrlException());
+    }
+
+    tryCreateUploadDir();
+
+    const uploadData = preprocess(sessionLog);
+
+    const stringified = JSON.stringify(uploadData);
+    const compressed = await gzipCompress(stringified);
+    if (appSettings.uploads.saveCopy) {
+      const outFile = path.join(mainFolder, "uploads", `${uploadData.currentBoss}-${randomUUID()}.json.gz`);
+      fs.writeFile(outFile, compressed, (err) => {
+        if (err) log.error("Failed to save copy of upload:", err?.message);
+      });
+    }
+
+    const request = createRequestOptions(ingestUrl, compressed, stringified.length, token);
+    const response = await axios(request);
+
+    log.info(response.data)
+
+    return new UploadResult("FOO");
+  } catch (e) {
+    if (e instanceof UploaderException) {
+      return new UploadResult(e);
+    } else if (isAxiosError(e)) {
+      log.debug("Axios error", e.message)
+      return new UploadResult(new UnexpectedErrorException(e));
+    }
+
+    log.debug("Unexpected error", e)
+    return new UploadResult(new UnexpectedErrorException(e as Error));
+  }
+};

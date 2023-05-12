@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("messageApi", {
       "shortcut-action",
       "selected-log-path-folder",
       "uploader-message",
+      "discord-login-success",
+      "discord-login-failure"
     ];
 
     if (validChannels.includes(channel)) {

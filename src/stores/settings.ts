@@ -44,21 +44,22 @@ export const useSettingsStore = defineStore("settings", {
           value: process.env.UPLOADS_INGEST_URL,
           defaultValue: process.env.UPLOADS_INGEST_URL,
         },
-        endpoint: {
-          value: process.env.UPLOADS_ENDPOINT,
-          defaultValue: process.env.UPLOADS_ENDPOINT,
-        },
         site: {
           value: process.env.UPLOADS_SITE_URL,
           defaultValue: process.env.UPLOADS_SITE_URL,
         },
-        discordOAuthUrl: {
-          value: process.env.UPLOADS_DISCORD_OAUTH_URL,
-          defaultValue: process.env.UPLOADS_DISCORD_OAUTH_URL,
+        discordClientId: {
+          value: process.env.UPLOADS_DISCORD_CLIENT_ID,
+          defaultValue: process.env.UPLOADS_DISCORD_CLIENT_ID,
+        },
+        discordRedirectUrl: {
+          value: process.env.UPLOADS_DISCORD_REDIRECT_URL,
+          defaultValue: process.env.UPLOADS_DISCORD_REDIRECT_URL,
         },
         openOnUpload: false,
         uploadUnlisted: true,
         includeRegion: false,
+        saveCopy: false,
       },
       damageMeter: {
         functionality: {

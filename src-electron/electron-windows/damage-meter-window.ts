@@ -1,11 +1,12 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow } from "electron";
 import log from "electron-log";
 import type { GameState } from "meter-core/logger/data";
 import path from "path";
 import { Settings } from "../util/app-settings";
-import { StatusCode, upload } from "../util/uploads/uploader";
+import * as Uploader from "../util/uploads/uploader";
 import { initWindow } from "../util/window-init";
 import { Parser } from "meter-core/logger/parser";
+import { UploadStatus } from "../util/uploads/data";
 
 export function createDamageMeterWindow(
   liveParser: Parser,
@@ -50,32 +51,43 @@ export function createDamageMeterWindow(
   damageMeterWindow.setAlwaysOnTop(true, "normal");
 
   // Event listeners
-  liveParser.on("reset-state", (state: GameState) => {
+  liveParser.on("reset-state", async (state: GameState) => {
     try {
       damageMeterWindow?.webContents.send("pcap-on-reset-state", "1");
 
-      upload(state, appSettings)
-        .then((response) => {
-          if (!response || response.code !== StatusCode.SUCCESS) return;
-          damageMeterWindow?.webContents.send("uploader-message", {
-            failed: false,
-            message: "Encounter uploaded",
-          });
-          // if (openInBrowser) {
-          //   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
-          //   shell.openExternal(url);
-          // }
-        })
-        .catch((e) => {
-          log.error(e);
-          //damageMeterWindow?.webContents.send("uploader-message", {
-          //  failed: true,
-          //  message: e.message,
-          //});
+      const response = await Uploader.upload(state, appSettings)
+      if (response.code === UploadStatus.ERROR) {
+        log.error("Upload error", response.error?.message)
+        log.error("Upload error cause", response.error?.cause?.message)
+        damageMeterWindow?.webContents.send("uploader-message", {
+          failed: true,
+          message: response.error?.message ?? "Unknown error",
+        });
+      } else if (response.code === UploadStatus.SUCCESS) {
+        damageMeterWindow?.webContents.send("uploader-message", {
+          failed: false,
+          message: "Encounter uploaded",
         });
 
+        /**
+         * if (openInBrowser) {
+         *   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
+         *   shell.openExternal(url);
+         * }
+         */
+      } else {
+        log.debug("Ignored upload status", response.code, response.error)
+      }
+      // Ignored skipped
     } catch (e) {
-      log.error(e);
+      log.error("Unhandled uploader error", e)
+
+      /**
+       * damageMeterWindow?.webContents.send("uploader-message", {
+       *   failed: true,
+       *   message: e.message,
+       * });
+       */
     }
   });
   liveParser.on("state-change", (newState: GameState) => {

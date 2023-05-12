@@ -20,7 +20,11 @@
     </q-item>
     <q-item v-else>
       <q-item-section side top>
-        <q-btn color="indigo" size="large" @click="openDiscordLogin()" :disable="uploaderStore.isLoggingIn">
+        <q-btn color="indigo" size="large"
+          @click="openDiscordLogin()"
+          :disable="uploaderStore.isLoggingIn"
+          :loading="uploaderStore.isLoggingIn"
+        >
           <q-icon name="discord" />
           &nbsp;&nbsp;Login
         </q-btn>
@@ -30,6 +34,7 @@
         <q-item-label caption>
           In order to upload logs, you must login with Discord.
         </q-item-label>
+        <q-item-label class="text-red" v-if="loginError !== ''">{{ loginError }}</q-item-label>
       </q-item-section>
     </q-item>
 
@@ -105,6 +110,31 @@
 
     <q-separator spaced />
 
+    <q-item-label header class="q-pb-none">Uploading FAQ</q-item-label>
+    <q-item-label caption class="q-pl-md q-mb-md">
+      <q-icon name="warning" color="red" />
+      The answers in this section cannot be guaranteed if you are using a self-hosted destination.
+    </q-item-label>
+    <q-item-section top class="q-pl-md q-mb-md">
+      <q-item-label>Q: Which encounters can be uploaded?</q-item-label>
+      <q-item-label caption class="q-mb-sm">A: Any Guardian Raid or Legion Raid. Anything else will be rejected.</q-item-label>
+
+      <q-item-label>Q: How many encounters can I upload?</q-item-label>
+      <q-item-label caption class="q-mb-sm">A: Currently the limit is set to <code>1000</code> uploads. However, you may delete any upload at any time.</q-item-label>
+
+      <q-item-label>Q: What information is stored when I login?</q-item-label>
+      <q-item-label caption>
+        A: Only the information Discord provides with the <code>'identify'</code>
+        <span
+          @click="openSite('https://discord.com/developers/docs/topics/oauth2#shared-resources-oauth2-scopes')"
+          class="text-primary"
+          style="cursor: pointer"
+        > scope</span>.
+      </q-item-label>
+    </q-item-section>
+
+    <q-separator spaced />
+
     <q-item tag="label">
       <q-item-section side top>
         <q-btn
@@ -166,26 +196,6 @@
         </q-item-section>
       </q-item>
 
-      <q-item tag="label" :clickable="false" style="display: none!important;">
-        <q-item-section left>
-          <q-item-label>Upload Endpoint&nbsp; </q-item-label>
-          <q-item-label caption>
-            Endpoint for log uploads on API.
-          </q-item-label>
-        </q-item-section>
-        <q-item-section right>
-          <q-input
-            v-model="settingsStore.settings.uploads.endpoint.value"
-            type="text"
-            label="Endpoint"
-            clearable
-            clear-icon="refresh"
-            @clear="resetURL('endpoint')"
-          >
-          </q-input>
-        </q-item-section>
-      </q-item>
-
       <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
         <q-item-section left>
           <q-item-label>Frontend&nbsp; </q-item-label>
@@ -207,17 +217,43 @@
 
       <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
         <q-item-section left>
+          <q-item-label>Discord Client ID&nbsp;</q-item-label>
+          <q-item-label caption>
+            Client ID for your
+            <span
+            @click="openSite(settingsStore.settings.uploads.discordRedirectUrl.value)"
+            class="text-primary"
+            style="cursor: pointer"
+            >Discord OAuth2 Application</span>.
+          </q-item-label>
+        </q-item-section>
+        <q-item-section right>
+          <q-input
+            v-model="settingsStore.settings.uploads.discordClientId.value"
+            type="text"
+            label="Client ID"
+            clearable
+            clear-icon="refresh"
+            @clear="resetURL('discordClientId')"
+            :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
+          >
+          </q-input>
+        </q-item-section>
+      </q-item>
+
+      <q-item tag="label" :clickable="false" :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)">
+        <q-item-section left>
           <q-item-label>Discord Redirect URL&nbsp; </q-item-label>
           <q-item-label caption> URL for redirect during OAuth2 login. Must be same as configured on API. </q-item-label>
         </q-item-section>
         <q-item-section right>
           <q-input
-            v-model="settingsStore.settings.uploads.discordOAuthUrl.value"
+            v-model="settingsStore.settings.uploads.discordRedirectUrl.value"
             type="text"
             label="Redirect URL"
             clearable
             clear-icon="refresh"
-            @clear="resetURL('discordOAuthUrl')"
+            @clear="resetURL('discordRedirectUrl')"
             :disable="(uploaderStore.getUser !== undefined && uploaderStore.getToken !== undefined)"
           >
           </q-input>
@@ -232,10 +268,11 @@ import { onMounted, ref } from "vue";
 import { useSettingsStore } from "src/stores/settings";
 import { useUploaderStore } from "src/stores/uploaderStore";
 
-const uploaderStore = useUploaderStore();
 const settingsStore = useSettingsStore();
+const uploaderStore = useUploaderStore();
 
 const showAdvanced = ref(false);
+const loginError = ref("");
 
 // Why isnt this reactive?
 // const loggedIn = ref(uploaderStore.getToken && uploaderStore.getUser)
@@ -252,13 +289,16 @@ window.messageApi.receive("on-settings-change", (value) => {
 
 window.messageApi.receive("discord-login-success", (value) => {
   uploaderStore.setLoggingIn(false)
+  if (loginError.value !== "") loginError.value = ""
 
-  uploaderStore.setToken(settingsStore.settings.uploads.jwt)
-  uploaderStore.setUser(settingsStore.settings.uploads.user)
+  uploaderStore.setToken(value.token)
+  uploaderStore.setUser(value.user)
 });
 
 window.messageApi.receive("discord-login-failure", () => {
   uploaderStore.setLoggingIn(false)
+  // TOOD: properly pass an error message from main
+  loginError.value = "Discord login failed, please try again later."
 
   uploaderStore.setToken(settingsStore.settings.uploads.jwt)
   uploaderStore.setUser(settingsStore.settings.uploads.user)
@@ -268,12 +308,10 @@ onMounted(() => {
   // Update uploader store
   uploaderStore.setToken(settingsStore.settings.uploads.jwt)
   uploaderStore.setUser(settingsStore.settings.uploads.user)
-
-  console.log(settingsStore.settings.uploads)
 });
 
 /**
- * @param {'api' | 'site' | 'ingest' | 'discordOAuthUrl'} type
+ * @param {'api' | 'site' | 'ingest' | 'discordClientId' | 'discordRedirectUrl'} type
  */
 function resetURL(type) {
   settingsStore.settings.uploads[type].value =
@@ -289,6 +327,7 @@ function openSite(url) {
 
 function openDiscordLogin() {
   uploaderStore.setLoggingIn(true)
+  if (loginError.value !== "") loginError.value = ""
   window.messageApi.send("window-to-main", {
     message: "open-discord-login",
   });

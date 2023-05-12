@@ -1,19 +1,14 @@
-import * as Data from "meter-core/logger/data";
-
 /**
  * Data helper classes for uploading.
  *
- * The initially received {@link Data.GameState} is converted to remove some
- * unnecessary data and to convert {@link Map} objects prior to stringify.
- *
- *
- * The removed data is mostly string game data (names, descriptions, etc.), which the
- * frontend is tasked with applying based on its own localization files (from meter-data).
- *
- * Primarily done to save space.
+ * Custom types are used to stay bound to the underlying format provided
+ * by meter-core while modifying (or removing) information.
  */
+import * as Data from "meter-core/logger/data";
+import { MissingGearScoreException, NoBossEntityException, NoLocalPlayerException, UploaderException } from "./exceptions";
 
 //#region Custom types
+
 export type Entity = Omit<
   Data.EntityState,
   | "skills"
@@ -33,6 +28,7 @@ export type Entity = Omit<
   damagePreventedByShieldBy: { [key: number]: number };
   shieldDoneBy: { [key: number]: number };
   shieldReceivedBy: { [key: number]: number };
+  isLocalPlayer: boolean;
 };
 
 export type Skill = Omit<
@@ -66,11 +62,14 @@ export type DamageStatistics = Omit<
 
 export type StatusEffect = Omit<Data.StatusEffect, "source"> & {
   source: StatusEffectSource;
-}
+};
 
-export type StatusEffectSource = Omit<Data.StatusEffectSource, "name" | "desc" | "skill"> & {
-  skill?: EffectSkill
-}
+export type StatusEffectSource = Omit<
+  Data.StatusEffectSource,
+  "name" | "desc" | "skill"
+> & {
+  skill?: EffectSkill;
+};
 
 export type EffectSkill = {
   id: number;
@@ -79,23 +78,38 @@ export type EffectSkill = {
   summonids?: number[];
   summonsourceskill?: number;
   sourceskill?: number;
-}
+};
 
 //#endregion
 
 //#region Custom Classes
 
+/**
+ * The initially received {@link Data.GameState} is converted to remove some
+ * unnecessary data and to convert {@link Map} objects prior to stringify.
+ *
+ * The removed data is mostly string game data (names, descriptions, etc.), which the
+ * frontend is tasked with applying based on its own localization files (from meter-data).
+ *
+ * Primarily done to slim down the data sent and save bandwidth.
+ */
 export class Upload {
   startedOn: number;
   lastCombatPacket: number;
   fightStartedOn: number;
-  localPlayer: string;
+  localPlayer: string; // Id of the local player
   currentBoss: string; // Id of the current boss
   entities: CustomEntity[];
   damageStatistics: CustomDamageStatistics;
 
   constructor(state: Data.GameState) {
-    if (!state.currentBoss) throw new Error("No boss found");
+    if (!state.currentBoss) throw new NoBossEntityException();
+
+    // Sometimes the boss is not present in entities, but is being tracked as
+    // the current boss, so we need to add it to the entities list for handling
+    // to properly pick it up.
+    const inEntities = state.entities.get(state.currentBoss.name);
+    if (!inEntities) state.entities.set(state.currentBoss.name, state.currentBoss);
 
     this.currentBoss = state.currentBoss.id;
     this.startedOn = state.startedOn;
@@ -106,22 +120,81 @@ export class Upload {
     this.damageStatistics = new CustomDamageStatistics(state.damageStatistics);
   }
 
+  isTypedEntity(entity: Data.EntityState): boolean {
+    return entity.isBoss || entity.isPlayer || (entity.isEsther ?? false);
+  }
+
+  getType(entity: Data.EntityState): string {
+    if (entity.isBoss) return "boss";
+    if (entity.isPlayer) return "player";
+    if (entity.isEsther) return "esther";
+    return "unknown";
+  }
+
   handleEntities(entities: Map<string, Data.EntityState>): CustomEntity[] {
     const handled: CustomEntity[] = [];
     for (const [, value] of entities) {
-      if (
-        (!value.isBoss && !value.isPlayer && !value.isEsther) ||
-        value.skills.size === 0
-      )
+      // || value.skills.size === 0
+      if (!this.isTypedEntity(value)) {
+        console.log("Skipping entity", value.name, value.id, this.getType(value))
         continue;
-
-      handled.push(new CustomEntity(value));
+      }
+      handled.push(new CustomEntity(value, value.name === this.localPlayer));
+      console.log("Handled entity", value.name, value.id, this.getType(value))
     }
+
+    /**
+     * All players must have a gear score and the local player must be present
+     */
+    for (const entity of handled) {
+      if (entity.isPlayer && entity.gearScore === 0) {
+        throw new MissingGearScoreException();
+      }
+    }
+    const handledLocalPlayer = handled.find((e) => e.isLocalPlayer);
+    if (!handledLocalPlayer) throw new NoLocalPlayerException();
+
+    /**
+     * Sometimes the {@link Upload.currentBoss} is the boss from the previous encounter,
+     * so we need find the boss with the most recent {@link CustomEntity.lastUpdate}
+     * and use that.
+     *
+     * * Although inconsistent, this behaviour was primarily encountered when doing two
+     *   guardians back to back without leaving the raid in-between.
+     *
+     * A problem that arises here is that the breakdowns of individual skills may
+     * still target the previous boss, so we also need to reassign the
+     * {@link Data.Breakdown.targetEntity} on each entry... for now we only do this
+     * if the current boss is not found in the log.
+     *
+     * TODO: needs more testing
+     */
+    const bosses = handled.filter((e) => e.isBoss);
+    if (bosses.length === 0) throw new NoBossEntityException();
+
+    bosses.sort((a, b) => b.lastUpdate - a.lastUpdate);
+    const boss = bosses[0];
+
+    if (this.currentBoss !== boss.id) {
+      const oldBoss = handled.find((e) => e.id === this.currentBoss);
+      if (!oldBoss) {
+        for (const entity of handled) {
+          if (!entity.isPlayer) continue;
+          for (const skill of entity.skills) {
+            skill.reassignBreakdownTarget(this.currentBoss, boss.id)
+          }
+        }
+      }
+
+      this.currentBoss = boss.id;
+    }
+
     return handled;
   }
 }
 
 export class CustomEntity implements Entity {
+  isLocalPlayer: boolean;
   lastUpdate: number;
   id: string;
   npcId: number;
@@ -155,7 +228,8 @@ export class CustomEntity implements Entity {
   shieldDoneBy: { [key: number]: number };
   shieldReceivedBy: { [key: number]: number };
 
-  constructor(entity: Data.EntityState) {
+  constructor(entity: Data.EntityState, isLocalPlayer: boolean) {
+    this.isLocalPlayer = isLocalPlayer;
     this.lastUpdate = entity.lastUpdate;
     this.id = entity.id;
     this.npcId = entity.npcId;
@@ -178,15 +252,24 @@ export class CustomEntity implements Entity {
     this.shieldDone = entity.shieldDone;
     this.damageTaken = entity.damageTaken;
     this.shieldReceived = entity.shieldReceived;
-    this.damagePreventedWithShieldOnOthers = entity.damagePreventedWithShieldOnOthers;
+    this.damagePreventedWithShieldOnOthers =
+      entity.damagePreventedWithShieldOnOthers;
     this.damagePreventedByShield = entity.damagePreventedByShield;
 
-    this.skills = Array.from(entity.skills.values()).map(skill => new CustomSkill(skill));
+    this.skills = Array.from(entity.skills.values()).map(
+      (skill) => new CustomSkill(skill)
+    );
     this.hits = new CustomHits(entity.hits);
-    this.damageDealtDebuffedBy = Object.fromEntries(entity.damageDealtDebuffedBy);
+    this.damageDealtDebuffedBy = Object.fromEntries(
+      entity.damageDealtDebuffedBy
+    );
     this.damageDealtBuffedBy = Object.fromEntries(entity.damageDealtBuffedBy);
-    this.damagePreventedWithShieldOnOthersBy = Object.fromEntries(entity.damagePreventedWithShieldOnOthersBy);
-    this.damagePreventedByShieldBy = Object.fromEntries(entity.damagePreventedByShieldBy);
+    this.damagePreventedWithShieldOnOthersBy = Object.fromEntries(
+      entity.damagePreventedWithShieldOnOthersBy
+    );
+    this.damagePreventedByShieldBy = Object.fromEntries(
+      entity.damagePreventedByShieldBy
+    );
     this.shieldDoneBy = Object.fromEntries(entity.shieldDoneBy);
     this.shieldReceivedBy = Object.fromEntries(entity.shieldReceivedBy);
   }
@@ -213,8 +296,18 @@ export class CustomSkill implements Skill {
     this.maxDamage = skill.maxDamage;
     this.hits = new CustomHits(skill.hits);
     this.breakdown = skill.breakdown;
-    this.damageDealtDebuffedBy = Object.fromEntries(skill.damageDealtDebuffedBy);
+    this.damageDealtDebuffedBy = Object.fromEntries(
+      skill.damageDealtDebuffedBy
+    );
     this.damageDealtBuffedBy = Object.fromEntries(skill.damageDealtBuffedBy);
+  }
+
+  reassignBreakdownTarget(previous: string, updated: string) {
+    this.breakdown.forEach((b) => {
+      if (b.targetEntity === previous) {
+        b.targetEntity = updated;
+      }
+    });
   }
 }
 
@@ -276,29 +369,30 @@ export class CustomDamageStatistics implements DamageStatistics {
     this.totalShieldDone = damageStatistics.totalShieldDone;
     this.topShieldDone = damageStatistics.topShieldDone;
 
-    this.debuffs = []
-    damageStatistics.debuffs.forEach(
-      (value, key) => this.debuffs.push(new CustomStatusEffect(key, value))
+    this.debuffs = [];
+    damageStatistics.debuffs.forEach((value, key) =>
+      this.debuffs.push(new CustomStatusEffect(key, value))
     );
 
-    this.buffs = []
-    damageStatistics.buffs.forEach(
-      (value, key) => this.buffs.push(new CustomStatusEffect(key, value))
+    this.buffs = [];
+    damageStatistics.buffs.forEach((value, key) =>
+      this.buffs.push(new CustomStatusEffect(key, value))
     );
 
     this.topShieldGotten = damageStatistics.topShieldGotten;
-    this.totalEffectiveShieldingDone =damageStatistics.totalEffectiveShieldingDone;
+    this.totalEffectiveShieldingDone =
+      damageStatistics.totalEffectiveShieldingDone;
     this.topEffectiveShieldingDone = damageStatistics.topEffectiveShieldingDone;
     this.topEffectiveShieldingUsed = damageStatistics.topEffectiveShieldingUsed;
 
-    this.effectiveShieldingBuffs = []
-    damageStatistics.effectiveShieldingBuffs.forEach(
-      (value, key) => this.effectiveShieldingBuffs.push(new CustomStatusEffect(key, value))
+    this.effectiveShieldingBuffs = [];
+    damageStatistics.effectiveShieldingBuffs.forEach((value, key) =>
+      this.effectiveShieldingBuffs.push(new CustomStatusEffect(key, value))
     );
 
-    this.appliedShieldingBuffs = []
-    damageStatistics.appliedShieldingBuffs.forEach(
-      (value, key) => this.appliedShieldingBuffs.push(new CustomStatusEffect(key, value))
+    this.appliedShieldingBuffs = [];
+    damageStatistics.appliedShieldingBuffs.forEach((value, key) =>
+      this.appliedShieldingBuffs.push(new CustomStatusEffect(key, value))
     );
   }
 }
@@ -313,7 +407,7 @@ export class CustomStatusEffect implements StatusEffect {
   source: StatusEffectSource;
 
   constructor(id: number, statusEffect: Data.StatusEffect) {
-    this.id = id
+    this.id = id;
     this.target = statusEffect.target;
     this.category = statusEffect.category;
     this.buffcategory = statusEffect.buffcategory;
@@ -331,7 +425,8 @@ export class CustomStatusEffectSource implements StatusEffectSource {
   constructor(statusEffectSource: Data.StatusEffectSource) {
     this.icon = statusEffectSource.icon;
     this.setname = statusEffectSource.setname;
-    if (statusEffectSource.skill) this.skill = new CustomEffectSkill(statusEffectSource.skill);
+    if (statusEffectSource.skill)
+      this.skill = new CustomEffectSkill(statusEffectSource.skill);
   }
 }
 
@@ -350,6 +445,31 @@ export class CustomEffectSkill implements EffectSkill {
     this.summonids = effectSkill.summonids;
     this.summonsourceskill = effectSkill.summonsourceskill;
     this.sourceskill = effectSkill.sourceskill;
+  }
+}
+
+//#endregion
+
+//#region Uploader Helpers
+export enum UploadStatus {
+  SUCCESS = 0,
+  IGNORED = 1,
+  ERROR = 2,
+}
+
+export class UploadResult {
+  code: UploadStatus;
+  id?: string;
+  error?: UploaderException;
+
+  constructor(result: string | UploaderException) {
+    if (result instanceof UploaderException) {
+      this.code = result.notify ? UploadStatus.ERROR : UploadStatus.IGNORED;
+      this.error = result
+    } else {
+      this.code = UploadStatus.SUCCESS;
+      this.id = result;
+    }
   }
 }
 //#endregion

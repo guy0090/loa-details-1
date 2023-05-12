@@ -58,11 +58,14 @@ module.exports = configure(function (/* ctx */) {
       vueRouterMode: "hash", // available values: 'hash', 'history'
 
       env: {
-        UPLOADS_API_URL: "https://api.lail.ai",
-        UPLOADS_LOGIN_URL: "https://lail.ai",
-        UPLOADS_INGEST_URL: "https://ingest.lail.ai",
-        UPLOADS_ENDPOINT: "/logs",
-        UPLOADS_DISCORD_OAUTH_URL: "https://discord.com/api/oauth2/authorize?client_id=1086681441955483739&redirect_uri=http%3A%2F%2Flocalhost%3A7070%2Flogin&response_type=code&scope=identify",
+        UPLOADS_API_URL: "https://api.dev.lail.ai",
+        UPLOADS_SITE_URL: "https://dev.lail.ai",
+        UPLOADS_INGEST_URL: "http://ingest.dev.lail.ai",
+        // UPLOADS_API_URL: "http://localhost:8080",
+        // UPLOADS_SITE_URL: "http://localhost:7070",
+        // UPLOADS_INGEST_URL: "http://localhost:9090",
+        UPLOADS_DISCORD_CLIENT_ID: "1086681441955483739",
+        UPLOADS_DISCORD_REDIRECT_URL: "https://app.lail.ai/login",
       },
       devtool: "source-map",
       // vueRouterBase,

@@ -42,6 +42,7 @@ import {
 } from "./util/updater";
 import { adminRelauncher, PktCaptureMode } from "meter-core/pkt-capture";
 import { Parser } from "meter-core/logger/parser";
+import * as Uploader from "./util/uploads/oAuthUtils";
 
 if (app.commandLine.hasSwitch("disable-hardware-acceleration")) {
   log.info("Hardware acceleration disabled");
@@ -80,6 +81,17 @@ if (!gotTheLock) {
 }
 
 let appSettings = getSettings();
+
+// Try logging in if Discord token is set
+const token = appSettings.uploads.jwt;
+if (token && token !== "") {
+  log.debug("Discord token found, trying to login")
+  Uploader.login(appSettings).then((res) => {
+    log.debug(`Discord token refreshed (${res.user.discordUsername}#${res.user.discriminator})`)
+  }).catch((err) => {
+    log.error("Failed to refresh Discord token", err);
+  })
+}
 
 // log file stuff
 const padTo2Digits = (num: number) => num.toString().padStart(2, "0");
@@ -353,21 +365,22 @@ const ipcFunctions: {
     shell.openExternal(arg.value);
   },
   "open-discord-login": () => {
-    console.log("open-discord-login", typeof discordLoginWindow)
     if (discordLoginWindow) return
-    console.log("open-discord-login", typeof discordLoginWindow)
     discordLoginWindow = createDiscordLoginWindow(appSettings);
     discordLoginWindow?.on("closed", () => {
       discordLoginWindow = null
       const user = appSettings.uploads.user
       const token = appSettings.uploads.jwt
 
+      log.debug("Closed", user, token)
       if (user && token) {
         saveSettings(appSettings);
         mainWindow?.webContents.send("on-settings-change", appSettings);
         damageMeterWindow?.webContents.send("on-settings-change", appSettings);
         mainWindow?.webContents.send("discord-login-success", { user, token })
+        log.debug("Successful login")
       } else {
+        log.debug("Failed login")
         mainWindow?.webContents.send("discord-login-failure")
       }
     })

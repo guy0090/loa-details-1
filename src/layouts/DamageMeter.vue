@@ -521,7 +521,7 @@ onMounted(() => {
     const { failed, message } = value;
     if (failed) {
       Notify.create({
-        message: message,
+        message: "Upload failed: " + message,
         color: "red",
       });
     } else {

@@ -1,4 +1,5 @@
 import { Settings } from "app/src-electron/util/app-settings";
+import { User } from "app/src-electron/util/uploads/oAuthUtils";
 import { ProgressInfo } from "electron-updater";
 import { GameState } from "meter-core/logger/data";
 export type MessageEvent =
@@ -25,6 +26,11 @@ export interface MessageApi {
     channel: "uploader-message",
     func: (value: { failed: boolean; message: string }) => void
   ): void;
+  receive(
+    channel: "discord-login-success",
+    func: (value: { user: User, token: string }) => void
+  ): void;
+  receive(channel: "discord-login-failure", func: () => void): void;
   receive(channel: string, func: (...args: unknown[]) => void): void;
 }
 
