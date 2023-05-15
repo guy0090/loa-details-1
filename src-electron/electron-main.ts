@@ -87,6 +87,12 @@ const token = appSettings.uploads.jwt;
 if (token && token !== "") {
   log.debug("Discord token found, trying to login")
   Uploader.login(appSettings).then((res) => {
+    appSettings.uploads.jwt = res.token;
+    appSettings.uploads.user = res.user;
+    saveSettings(appSettings);
+
+    mainWindow?.webContents.send("on-settings-change", appSettings);
+    damageMeterWindow?.webContents.send("on-settings-change", appSettings);
     log.debug(`Discord token refreshed (${res.user.discordUsername}#${res.user.discriminator})`)
   }).catch((err) => {
     log.error("Failed to refresh Discord token", err);

@@ -8,13 +8,13 @@ import zlib from "zlib";
 import { randomUUID } from "crypto";
 import { Upload, UploadResult } from "./data";
 import {
-  BossNotDeadException,
   CompressionFailedException,
   FailedCreateUploadDirException,
   FightNotStartedException,
   InvalidIngestUrlException,
   NoAuthTokenException,
   NoBossEntityException,
+  RejectedByServerException,
   UnexpectedErrorException,
   UploaderException,
 } from "./exceptions";
@@ -71,11 +71,7 @@ export const preprocess = (sessionLog: Data.GameState): Upload => {
     throw new NoBossEntityException();
   }
 
-  const upload = new Upload(sessionLog);
-  const boss = upload.entities.find((e) => e.id === upload.currentBoss);
-  if (!boss || boss.currentHp > 0) throw new BossNotDeadException();
-
-  return upload;
+  return new Upload(sessionLog);
 };
 
 
@@ -95,6 +91,7 @@ export const createRequestOptions = (
       "X-Inflated-Length": inflatedSize,
       "Authorization": `Bearer ${token}`
     },
+    validateStatus: (status) => status === 200 || status === 406,
     data,
   }
 }
@@ -129,9 +126,7 @@ export const upload = async (
     }
 
     tryCreateUploadDir();
-
     const uploadData = preprocess(sessionLog);
-
     const stringified = JSON.stringify(uploadData);
     const compressed = await gzipCompress(stringified);
     if (appSettings.uploads.saveCopy) {
@@ -142,11 +137,16 @@ export const upload = async (
     }
 
     const request = createRequestOptions(ingestUrl, compressed, stringified.length, token);
+    // Only 200/406 is possible here due to status code validation
     const response = await axios(request);
 
-    log.info(response.data)
+    const data = response.data;
+    if (!data.id) { // 406 may return an existing ID, if not we have an error
+      log.error("Upload rejected by server => Code::", data.code, "| Message::", data.message);
+      return new UploadResult(new RejectedByServerException(false));
+    }
 
-    return new UploadResult("FOO");
+    return new UploadResult(data.id);
   } catch (e) {
     if (e instanceof UploaderException) {
       return new UploadResult(e);

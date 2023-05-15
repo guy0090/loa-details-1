@@ -2,7 +2,7 @@ import { app, BrowserWindow } from "electron";
 import log from "electron-log";
 import type { GameState } from "meter-core/logger/data";
 import path from "path";
-import { Settings } from "../util/app-settings";
+import { getSettings, Settings } from "../util/app-settings";
 import * as Uploader from "../util/uploads/uploader";
 import { initWindow } from "../util/window-init";
 import { Parser } from "meter-core/logger/parser";
@@ -51,44 +51,8 @@ export function createDamageMeterWindow(
   damageMeterWindow.setAlwaysOnTop(true, "normal");
 
   // Event listeners
-  liveParser.on("reset-state", async (state: GameState) => {
-    try {
-      damageMeterWindow?.webContents.send("pcap-on-reset-state", "1");
-
-      const response = await Uploader.upload(state, appSettings)
-      if (response.code === UploadStatus.ERROR) {
-        log.error("Upload error", response.error?.message)
-        log.error("Upload error cause", response.error?.cause?.message)
-        damageMeterWindow?.webContents.send("uploader-message", {
-          failed: true,
-          message: response.error?.message ?? "Unknown error",
-        });
-      } else if (response.code === UploadStatus.SUCCESS) {
-        damageMeterWindow?.webContents.send("uploader-message", {
-          failed: false,
-          message: "Encounter uploaded",
-        });
-
-        /**
-         * if (openInBrowser) {
-         *   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
-         *   shell.openExternal(url);
-         * }
-         */
-      } else {
-        log.debug("Ignored upload status", response.code, response.error)
-      }
-      // Ignored skipped
-    } catch (e) {
-      log.error("Unhandled uploader error", e)
-
-      /**
-       * damageMeterWindow?.webContents.send("uploader-message", {
-       *   failed: true,
-       *   message: e.message,
-       * });
-       */
-    }
+  liveParser.on("reset-state", () => {
+    damageMeterWindow?.webContents.send("pcap-on-reset-state", "1");
   });
   liveParser.on("state-change", (newState: GameState) => {
     try {
@@ -106,6 +70,47 @@ export function createDamageMeterWindow(
       log.error(e);
     }
   });
+
+  liveParser.on("raid-boss-killed", async (data) => {
+    const { wipe, state } = data;
+    if (wipe) return;
+
+    const settings = getSettings();
+    if (!settings.uploads.uploadLogs) {
+      log.debug("Uploads disabled")
+      return
+    }
+
+    try {
+      const response = await Uploader.upload(state, settings)
+      if (response.code === UploadStatus.ERROR) {
+        log.error("Upload error", response.error?.message)
+        log.error("Upload error cause", response.error?.cause?.message)
+        damageMeterWindow?.webContents.send("uploader-message", {
+          failed: true,
+          message: response.error?.message ?? "Unknown error",
+        });
+      } else if (response.code === UploadStatus.SUCCESS) {
+        damageMeterWindow?.webContents.send("uploader-message", {
+          failed: false,
+          message: "Encounter uploaded",
+        });
+
+        log.debug("Upload success", response.id)
+        /**
+         * if (openInBrowser) {
+         *   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
+         *   shell.openExternal(url);
+         * }
+         */
+      } else {
+        log.debug("Ignored upload status => Message::", response.error?.message)
+      }
+      // Ignored skipped
+    } catch (e) {
+      log.error("Unhandled uploader error", e)
+    }
+  })
 
   damageMeterWindow.on("focus", () => {
     damageMeterWindow?.setIgnoreMouseEvents(false);

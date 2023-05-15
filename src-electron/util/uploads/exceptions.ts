@@ -7,12 +7,17 @@ export enum UploaderExceptionCode {
   UPLOAD_QUOTA_EXCEEDED = 5,
   NO_BOSS_ENTITY = 6,
   BOSS_NOT_DEAD = 7,
-  INVALID_UPLOAD_DATA = 8,
+  UNSUPPORTED_UPLOAD = 8,
   COMPRESSION_FAILED = 9,
   FAILED_CREATE_UPLOAD_DIR = 10,
   FIGHT_NOT_STARTED = 11,
   MISSING_GEAR_SCORE = 12,
   NO_LOCAL_PLAYER = 13,
+}
+
+export enum IngestRejectionCode {
+  UNSUPPORTED_UPLOAD = 2,
+  INVALID_PAYLOAD = 3,
 }
 
 export abstract class UploaderException extends Error {
@@ -59,8 +64,8 @@ export class NoAuthTokenException extends UploaderException {
 }
 
 export class RejectedByServerException extends UploaderException {
-  constructor(cause?: Error, message = "The server rejected the upload.") {
-    super(message, UploaderExceptionCode.REJECTED_BY_SERVER, cause);
+  constructor(notify: boolean, cause?: Error, message = "The server rejected the upload.") {
+    super(message, UploaderExceptionCode.REJECTED_BY_SERVER, cause, notify);
   }
 }
 

@@ -4,13 +4,15 @@
  * Custom types are used to stay bound to the underlying format provided
  * by meter-core while modifying (or removing) information.
  */
+import log from "electron-log";
 import * as Data from "meter-core/logger/data";
-import { MissingGearScoreException, NoBossEntityException, NoLocalPlayerException, UploaderException } from "./exceptions";
+import { BossNotDeadException, MissingGearScoreException, NoBossEntityException, NoLocalPlayerException, UploaderException } from "./exceptions";
 
 //#region Custom types
 
 export type Entity = Omit<
   Data.EntityState,
+  | "name"
   | "skills"
   | "hits"
   | "damageDealtDebuffedBy"
@@ -20,6 +22,7 @@ export type Entity = Omit<
   | "shieldDoneBy"
   | "shieldReceivedBy"
 > & {
+  name?: string;
   skills: CustomSkill[];
   hits: Hits;
   damageDealtDebuffedBy: { [key: number]: number };
@@ -132,62 +135,24 @@ export class Upload {
   }
 
   handleEntities(entities: Map<string, Data.EntityState>): CustomEntity[] {
+    let bosses = 0;
     const handled: CustomEntity[] = [];
     for (const [, value] of entities) {
-      // || value.skills.size === 0
       if (!this.isTypedEntity(value)) {
-        console.log("Skipping entity", value.name, value.id, this.getType(value))
+        log.debug("Skipping entity", value.name, value.id, this.getType(value))
         continue;
       }
-      handled.push(new CustomEntity(value, value.name === this.localPlayer));
-      console.log("Handled entity", value.name, value.id, this.getType(value))
-    }
+      if (value.id === this.currentBoss && value.currentHp > 0) throw new BossNotDeadException();
+      if (value.isPlayer && value.gearScore === 0) throw new MissingGearScoreException();
+      if (value.isBoss) bosses++;
 
-    /**
-     * All players must have a gear score and the local player must be present
-     */
-    for (const entity of handled) {
-      if (entity.isPlayer && entity.gearScore === 0) {
-        throw new MissingGearScoreException();
-      }
+      handled.push(new CustomEntity(value, value.name === this.localPlayer));
+      log.debug("Handled entity", value.name ?? value.npcId, value.id, this.getType(value))
     }
+    if (bosses === 0) throw new NoBossEntityException();
+
     const handledLocalPlayer = handled.find((e) => e.isLocalPlayer);
     if (!handledLocalPlayer) throw new NoLocalPlayerException();
-
-    /**
-     * Sometimes the {@link Upload.currentBoss} is the boss from the previous encounter,
-     * so we need find the boss with the most recent {@link CustomEntity.lastUpdate}
-     * and use that.
-     *
-     * * Although inconsistent, this behaviour was primarily encountered when doing two
-     *   guardians back to back without leaving the raid in-between.
-     *
-     * A problem that arises here is that the breakdowns of individual skills may
-     * still target the previous boss, so we also need to reassign the
-     * {@link Data.Breakdown.targetEntity} on each entry... for now we only do this
-     * if the current boss is not found in the log.
-     *
-     * TODO: needs more testing
-     */
-    const bosses = handled.filter((e) => e.isBoss);
-    if (bosses.length === 0) throw new NoBossEntityException();
-
-    bosses.sort((a, b) => b.lastUpdate - a.lastUpdate);
-    const boss = bosses[0];
-
-    if (this.currentBoss !== boss.id) {
-      const oldBoss = handled.find((e) => e.id === this.currentBoss);
-      if (!oldBoss) {
-        for (const entity of handled) {
-          if (!entity.isPlayer) continue;
-          for (const skill of entity.skills) {
-            skill.reassignBreakdownTarget(this.currentBoss, boss.id)
-          }
-        }
-      }
-
-      this.currentBoss = boss.id;
-    }
 
     return handled;
   }
@@ -198,7 +163,7 @@ export class CustomEntity implements Entity {
   lastUpdate: number;
   id: string;
   npcId: number;
-  name: string;
+  name?: string;
   classId: number;
   partyId?: string;
   isBoss: boolean;
@@ -234,7 +199,7 @@ export class CustomEntity implements Entity {
     this.lastUpdate = entity.lastUpdate;
     this.id = entity.id;
     this.npcId = entity.npcId;
-    this.name = entity.name;
+    if (entity.isPlayer) this.name = entity.name; // Don't need non-player names
     this.classId = entity.classId;
     this.partyId = entity.partyId;
     this.isBoss = entity.isBoss;
@@ -258,6 +223,7 @@ export class CustomEntity implements Entity {
       entity.damagePreventedWithShieldOnOthers;
     this.damagePreventedByShield = entity.damagePreventedByShield;
 
+    // TODO: Remove skills from non-players?
     this.skills = Array.from(entity.skills.values()).map(
       (skill) => new CustomSkill(skill)
     );
