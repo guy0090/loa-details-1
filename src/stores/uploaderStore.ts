@@ -1,4 +1,4 @@
-import { User } from "../../src-electron/util/uploads/oAuthUtils";
+import { User } from "../../src-electron/util/uploads/apiUtils";
 import { defineStore } from "pinia";
 
 export const useUploaderStore = defineStore("uploader", {

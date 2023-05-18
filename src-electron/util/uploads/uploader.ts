@@ -104,8 +104,6 @@ export const createRequestOptions = (
  * result of the preprocessing. Optionally, copies of the upload are also saved
  * locally.
  *
- * @throws UploaderException if an error occurs while uploading
- *
  * @param sessionLog The game state to upload
  * @param appSettings The app settings
  *
@@ -136,8 +134,9 @@ export const upload = async (
       });
     }
 
+    log.info("Uploading encounter for", uploadData.currentBoss, "to", ingestUrl)
     const request = createRequestOptions(ingestUrl, compressed, stringified.length, token);
-    // Only 200/406 is possible here due to status code validation
+    // 200 & 406 is possible here due to status code validation
     const response = await axios(request);
 
     const data = response.data;
@@ -151,11 +150,11 @@ export const upload = async (
     if (e instanceof UploaderException) {
       return new UploadResult(e);
     } else if (isAxiosError(e)) {
-      log.debug("Axios error", e.message)
+      log.error("Axios error", e.message)
       return new UploadResult(new UnexpectedErrorException(e));
     }
 
-    log.debug("Unexpected error", e)
+    log.error("Unexpected error", e)
     return new UploadResult(new UnexpectedErrorException(e as Error));
   }
 };

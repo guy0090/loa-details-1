@@ -1,5 +1,5 @@
 import { Settings } from "app/src-electron/util/app-settings";
-import { User } from "app/src-electron/util/uploads/oAuthUtils";
+import { User } from "app/src-electron/util/uploads/apiUtils";
 import { ProgressInfo } from "electron-updater";
 import { GameState } from "meter-core/logger/data";
 export type MessageEvent =

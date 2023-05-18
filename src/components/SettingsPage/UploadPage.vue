@@ -1,6 +1,6 @@
 <template>
   <q-list>
-    <q-item-label header>Log Uploads</q-item-label>
+    <q-item-label header>Uploading Encounters</q-item-label>
 
     <q-item tag="label" v-if="uploaderStore.getToken && uploaderStore.getUser" :clickable="false" :focused="false" :manual-focus="true">
       <q-item-section side top>
@@ -52,7 +52,7 @@
       </q-item-section>
     </q-item>
 
-    <q-item tag="label" style="display: none!important">
+    <q-item tag="label" style="display: none">
       <q-item-section side top>
         <q-checkbox v-model="settingsStore.settings.uploads.uploadUnlisted" />
       </q-item-section>
@@ -66,7 +66,7 @@
       </q-item-section>
     </q-item>
 
-    <q-item tag="label">
+    <q-item tag="label" style="display: none;">
       <q-item-section side top>
         <q-checkbox v-model="settingsStore.settings.uploads.includeRegion" />
       </q-item-section>
@@ -101,9 +101,9 @@
       </q-item-section>
 
       <q-item-section>
-        <q-item-label>Upload Logged DPS</q-item-label>
+        <q-item-label>Upload Logged Encounters</q-item-label>
         <q-item-label caption>
-          Enable to upload your sessions to the web. Requires you to be logged in.
+          Enable to upload your logs to the web. Requires you to be logged in.
         </q-item-label>
       </q-item-section>
     </q-item>
@@ -126,6 +126,21 @@
       </q-item-section>
     </q-item>
 
+    <q-item tag="label">
+      <q-item-section side top>
+        <q-checkbox
+          v-model="settingsStore.settings.uploads.debug"
+        />
+      </q-item-section>
+
+      <q-item-section>
+        <q-item-label>Enable Debug Output</q-item-label>
+        <q-item-label caption>
+          Enable to display additional debug notifications on failed uploads.
+        </q-item-label>
+      </q-item-section>
+    </q-item>
+
     <q-separator spaced />
 
     <q-item-label header class="q-pb-none">Uploading FAQ</q-item-label>
@@ -135,19 +150,39 @@
     </q-item-label>
     <q-item-section top class="q-pl-md q-mb-md">
       <q-item-label>Q: Which encounters can be uploaded?</q-item-label>
-      <q-item-label caption class="q-mb-sm">A: Any Guardian Raid or Legion Raid. Anything else will be rejected.</q-item-label>
+      <q-item-label caption class="q-mb-sm">
+        A: Depends. See the
+        <span
+          @click="openSite(`${settingsStore.settings.uploads.site.value}/supported`)"
+          class="text-primary"
+          style="cursor: pointer"
+        >supported uploads page</span> for the current list.
+      </q-item-label>
 
-      <q-item-label>Q: How many encounters can I upload?</q-item-label>
-      <q-item-label caption class="q-mb-sm">A: Currently the limit is set to <code>1000</code> uploads. However, you may delete any upload at any time.</q-item-label>
+      <q-item-label>Q: How many encounters can I upload?
+        <q-badge color="green" align="middle" v-if="uploaderStore.isLoggedIn">
+          {{ uploaderStore.user.uploads }}/{{ uploaderStore.user.maxUploads }}
+          <q-tooltip>Current Uploads</q-tooltip>
+        </q-badge>
+      </q-item-label>
+      <q-item-label caption class="q-mb-sm">
+        A: Every user has a quota of <code>1000</code> uploads by default (this is set low for initial testing).
+
+      </q-item-label>
 
       <q-item-label>Q: What information is stored when I login?</q-item-label>
-      <q-item-label caption>
+      <q-item-label caption class="q-mb-sm">
         A: Only the information Discord provides with the <code>'identify'</code>
         <span
           @click="openSite('https://discord.com/developers/docs/topics/oauth2#shared-resources-oauth2-scopes')"
           class="text-primary"
           style="cursor: pointer"
         > scope</span>.
+      </q-item-label>
+
+      <q-item-label>Q: What happens when multiple people are uploading the same log?</q-item-label>
+      <q-item-label caption class="q-mb-sm">
+        A: The first person to upload the log will be the owner of the encounter.
       </q-item-label>
     </q-item-section>
 

@@ -16,8 +16,12 @@ export enum UploaderExceptionCode {
 }
 
 export enum IngestRejectionCode {
+  INTERNAL_SERVER_ERROR = 0,
+  BAD_REQUEST = 1,
   UNSUPPORTED_UPLOAD = 2,
   INVALID_PAYLOAD = 3,
+  TOO_OLD = 4,
+  UPLOAD_QUOTA_EXCEEDED = 5,
 }
 
 export abstract class UploaderException extends Error {

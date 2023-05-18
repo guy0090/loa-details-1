@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, shell } from "electron";
 import log from "electron-log";
 import type { GameState } from "meter-core/logger/data";
 import path from "path";
@@ -95,18 +95,22 @@ export function createDamageMeterWindow(
           failed: false,
           message: "Encounter uploaded",
         });
-
         log.debug("Upload success", response.id)
-        /**
-         * if (openInBrowser) {
-         *   const url = `${appSettings.uploads.site.value}/logs/${response.id}`;
-         *   shell.openExternal(url);
-         * }
-         */
+
+        const openInBrowser = settings.uploads.openOnUpload;
+        if (openInBrowser) {
+          const url = `${appSettings.uploads.site.value}/log/${response.id}`;
+          shell.openExternal(url);
+        }
       } else {
         log.debug("Ignored upload status => Message::", response.error?.message)
+        if (settings.uploads.debug) {
+          damageMeterWindow?.webContents.send("uploader-message", {
+            failed: true,
+            message: response.error?.message ?? "Unknown error",
+          });
+        }
       }
-      // Ignored skipped
     } catch (e) {
       log.error("Unhandled uploader error", e)
     }

@@ -1,5 +1,5 @@
 import log from "electron-log";
-import * as Uploader from "../util/uploads/oAuthUtils";
+import * as Uploader from "../util/uploads/apiUtils";
 import { BrowserWindow, WebRequestFilter } from "electron";
 import path from "path";
 import { Settings } from "../util/app-settings";

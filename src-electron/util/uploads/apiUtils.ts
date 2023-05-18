@@ -13,6 +13,8 @@ export interface User {
   registeredDate: number;
   lastSeen: number;
   banned: boolean;
+  uploads: number;
+  maxUploads: number;
 }
 
 export interface OAuthResponse {

@@ -3,7 +3,7 @@ import log from "electron-log";
 import { StatusEffectBuffTypeFlags } from "meter-core/logger/data";
 import { classes } from "src/constants/classes";
 import { merge } from "lodash"; //TODO: when we rework, remove lodash (required for merge)
-import { User } from "./uploads/oAuthUtils";
+import { User } from "./uploads/apiUtils";
 
 const store = new Store();
 
@@ -96,6 +96,7 @@ export type Settings = {
     uploadUnlisted: boolean;
     includeRegion: boolean;
     saveCopy: boolean;
+    debug: boolean;
   };
   damageMeter: {
     functionality: {
@@ -172,29 +173,30 @@ const defaultSettings: Settings = {
     jwt: "",
     user: undefined,
     api: {
-      value: process.env.UPLOADS_API_URL,
-      defaultValue: process.env.UPLOADS_API_URL,
+      value: "https://api.lail.ai",
+      defaultValue: "https://api.lail.ai",
     },
     ingest: {
-      value: process.env.UPLOADS_INGEST_URL,
-      defaultValue: process.env.UPLOADS_INGEST_URL,
+      value: "https://ingest.lail.ai",
+      defaultValue: "https://ingest.lail.ai",
     },
     site: {
-      value: process.env.UPLOADS_SITE_URL,
-      defaultValue: process.env.UPLOADS_SITE_URL,
+      value: "https://lail.ai",
+      defaultValue: "https://lail.ai",
     },
     discordClientId: {
-      value: process.env.UPLOADS_DISCORD_CLIENT_ID,
-      defaultValue: process.env.UPLOADS_DISCORD_CLIENT_ID,
+      value: "1086681441955483739",
+      defaultValue: "1086681441955483739",
     },
     discordRedirectUrl: {
-      value: process.env.UPLOADS_DISCORD_REDIRECT_URL,
-      defaultValue: process.env.UPLOADS_DISCORD_REDIRECT_URL,
+      value: "https://app.lail.ai/login",
+      defaultValue: "https://app.lail.ai/login",
     },
     openOnUpload: false,
     uploadUnlisted: true,
     includeRegion: false,
     saveCopy: false,
+    debug: false,
   },
   damageMeter: {
     functionality: {

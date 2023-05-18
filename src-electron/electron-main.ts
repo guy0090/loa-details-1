@@ -42,7 +42,7 @@ import {
 } from "./util/updater";
 import { adminRelauncher, PktCaptureMode } from "meter-core/pkt-capture";
 import { Parser } from "meter-core/logger/parser";
-import * as Uploader from "./util/uploads/oAuthUtils";
+import * as Uploader from "./util/uploads/apiUtils";
 
 if (app.commandLine.hasSwitch("disable-hardware-acceleration")) {
   log.info("Hardware acceleration disabled");
@@ -85,7 +85,7 @@ let appSettings = getSettings();
 // Try logging in if Discord token is set
 const token = appSettings.uploads.jwt;
 if (token && token !== "") {
-  log.debug("Discord token found, trying to login")
+  log.info("Discord token found, trying to login")
   Uploader.login(appSettings).then((res) => {
     appSettings.uploads.jwt = res.token;
     appSettings.uploads.user = res.user;
@@ -93,7 +93,7 @@ if (token && token !== "") {
 
     mainWindow?.webContents.send("on-settings-change", appSettings);
     damageMeterWindow?.webContents.send("on-settings-change", appSettings);
-    log.debug(`Discord token refreshed (${res.user.discordUsername}#${res.user.discriminator})`)
+    log.info(`Discord token refreshed (${res.user.discordUsername}#${res.user.discriminator})`)
   }).catch((err) => {
     log.error("Failed to refresh Discord token", err);
   })
@@ -378,15 +378,15 @@ const ipcFunctions: {
       const user = appSettings.uploads.user
       const token = appSettings.uploads.jwt
 
-      log.debug("Closed", user, token)
+      log.info("Discord login window closed", user)
       if (user && token) {
         saveSettings(appSettings);
         mainWindow?.webContents.send("on-settings-change", appSettings);
         damageMeterWindow?.webContents.send("on-settings-change", appSettings);
         mainWindow?.webContents.send("discord-login-success", { user, token })
-        log.debug("Successful login")
+        log.info("Successful login")
       } else {
-        log.debug("Failed login")
+        log.info("Failed login")
         mainWindow?.webContents.send("discord-login-failure")
       }
     })

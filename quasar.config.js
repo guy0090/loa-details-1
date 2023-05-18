@@ -54,16 +54,7 @@ module.exports = configure(function (/* ctx */) {
         browser: ["chrome112"], // electron 24
         node: "node18",
       },
-
       vueRouterMode: "hash", // available values: 'hash', 'history'
-
-      env: {
-        UPLOADS_API_URL: "https://api.dev.lail.ai",
-        UPLOADS_SITE_URL: "https://dev.lail.ai",
-        UPLOADS_INGEST_URL: "https://ingest.dev.lail.ai",
-        UPLOADS_DISCORD_CLIENT_ID: "1086681441955483739",
-        UPLOADS_DISCORD_REDIRECT_URL: "https://app.lail.ai/login",
-      },
       devtool: "source-map",
       // vueRouterBase,
       // vueDevtools,

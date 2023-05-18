@@ -60,6 +60,7 @@ export const useSettingsStore = defineStore("settings", {
         uploadUnlisted: true,
         includeRegion: false,
         saveCopy: false,
+        debug: false,
       },
       damageMeter: {
         functionality: {
