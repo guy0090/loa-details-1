@@ -7,19 +7,18 @@ import { Settings } from "../app-settings";
 import zlib from "zlib";
 import { randomUUID } from "crypto";
 import { Upload, UploadResult } from "./data";
+import axios, { AxiosRequestConfig, AxiosError } from "axios";
 import {
   CompressionFailedException,
   FailedCreateUploadDirException,
   FightNotStartedException,
+  IngestException,
   InvalidIngestUrlException,
   NoAuthTokenException,
   NoBossEntityException,
-  RejectedByServerException,
   UnexpectedErrorException,
   UploaderException,
 } from "./exceptions";
-import axios, { AxiosRequestConfig, isAxiosError } from "axios";
-
 
 /**
  * Creates the uploads directory if it doesn't exist.
@@ -91,7 +90,6 @@ export const createRequestOptions = (
       "X-Inflated-Length": inflatedSize,
       "Authorization": `Bearer ${token}`
     },
-    validateStatus: (status) => status === 200 || status === 406,
     data,
   }
 }
@@ -128,33 +126,25 @@ export const upload = async (
     const stringified = JSON.stringify(uploadData);
     const compressed = await gzipCompress(stringified);
     if (appSettings.uploads.saveCopy) {
-      const outFile = path.join(mainFolder, "uploads", `${uploadData.currentBoss}-${randomUUID()}.json.gz`);
+      const outFile = path.join(mainFolder, "uploads", `${sessionLog.currentBoss?.name}-${randomUUID()}.json.gz`);
       fs.writeFile(outFile, compressed, (err) => {
         if (err) log.error("Failed to save copy of upload:", err?.message);
       });
     }
 
-    log.info("Uploading encounter for", uploadData.currentBoss, "to", ingestUrl)
+    log.debug("Uploading encounter for", uploadData.currentBoss, "to", ingestUrl)
     const request = createRequestOptions(ingestUrl, compressed, stringified.length, token);
-    // 200 & 406 is possible here due to status code validation
-    const response = await axios(request);
-
-    const data = response.data;
-    if (!data.id) { // 406 may return an existing ID, if not we have an error
-      log.error("Upload rejected by server => Code::", data.code, "| Message::", data.message);
-      return new UploadResult(new RejectedByServerException(false));
-    }
-
+    const { data } = await axios(request);
     return new UploadResult(data.id);
   } catch (e) {
     if (e instanceof UploaderException) {
       return new UploadResult(e);
-    } else if (isAxiosError(e)) {
-      log.error("Axios error", e.message)
-      return new UploadResult(new UnexpectedErrorException(e));
+    } else if (e instanceof AxiosError) {
+      const error = IngestException.fromAxios(e);
+      return error.getUploaderResult();
     }
 
-    log.error("Unexpected error", e)
+    log.error("Unexpected uploading error", e)
     return new UploadResult(new UnexpectedErrorException(e as Error));
   }
 };

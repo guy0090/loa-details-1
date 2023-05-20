@@ -94,13 +94,13 @@ export type EffectSkill = {
  * The removed data is mostly string game data (names, descriptions, etc.), which the
  * frontend is tasked with applying based on its own localization files (from meter-data).
  *
- * Primarily done to slim down the data sent and save bandwidth.
+ * Primarily done to slim down the data sent and save bandwidth/storage costs.
  */
 export class Upload {
   startedOn: number;
   lastCombatPacket: number;
   fightStartedOn: number;
-  localPlayer: string; // Id of the local player
+  localPlayer: string; // Id of the local player, originally the name
   currentBoss: string; // Id of the current boss
   entities: CustomEntity[];
   damageStatistics: CustomDamageStatistics;
@@ -168,7 +168,7 @@ export class CustomEntity implements Entity {
   partyId?: string;
   isBoss: boolean;
   isPlayer: boolean;
-  isEsther?: boolean;
+  isEsther: boolean;
   icon?: string;
   isDead: boolean;
   deaths: number;
@@ -204,8 +204,8 @@ export class CustomEntity implements Entity {
     this.partyId = entity.partyId;
     this.isBoss = entity.isBoss;
     this.isPlayer = entity.isPlayer;
-    this.isEsther = entity.isEsther;
-    this.icon = entity.icon;
+    this.isEsther = entity.isEsther ?? false;
+    if (entity.icon && entity.icon !== "") this.icon = entity.icon;
     this.isDead = entity.isDead;
     this.deaths = entity.deaths;
     this.deathTime = entity.deathTime;

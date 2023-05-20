@@ -4,6 +4,8 @@ import { Settings } from "../app-settings";
 import { sleep } from "../helpers";
 
 
+//#region Authentication
+
 export interface User {
   id: string;
   discordId: string;
@@ -81,3 +83,5 @@ export async function login(appSettings: Settings, retries = 5): Promise<OAuthRe
   }
   throw error || new Error("Failed logging in with Discord");
 }
+
+//#endregion
