@@ -31,7 +31,6 @@ export type Entity = Omit<
   damagePreventedByShieldBy: { [key: number]: number };
   shieldDoneBy: { [key: number]: number };
   shieldReceivedBy: { [key: number]: number };
-  isLocalPlayer: boolean;
 };
 
 export type Skill = Omit<
@@ -100,7 +99,7 @@ export class Upload {
   startedOn: number;
   lastCombatPacket: number;
   fightStartedOn: number;
-  localPlayer: string; // Id of the local player, originally the name
+  localPlayer: string; // Id of the local player
   currentBoss: string; // Id of the current boss
   entities: CustomEntity[];
   damageStatistics: CustomDamageStatistics;
@@ -118,7 +117,11 @@ export class Upload {
     this.startedOn = state.startedOn;
     this.lastCombatPacket = state.lastCombatPacket;
     this.fightStartedOn = state.fightStartedOn;
-    this.localPlayer = state.localPlayer;
+
+    const localPlayer = state.entities.get(state.localPlayer);
+    if (!localPlayer) throw new NoLocalPlayerException();
+
+    this.localPlayer = localPlayer.id;
     this.entities = this.handleEntities(state.entities); // Remove garbage entities
     this.damageStatistics = new CustomDamageStatistics(state.damageStatistics);
   }
@@ -138,7 +141,8 @@ export class Upload {
     let bosses = 0;
     const handled: CustomEntity[] = [];
     for (const [, value] of entities) {
-      if (!this.isTypedEntity(value)) {
+      // Might be worth keeping these in the future, but for now they're just noise
+      if (!this.isTypedEntity(value) || (value.isBoss && value.currentHp === value.maxHp)) {
         log.debug("Skipping entity", value.name, value.id, this.getType(value))
         continue;
       }
@@ -146,12 +150,12 @@ export class Upload {
       if (value.isPlayer && value.gearScore === 0) throw new MissingGearScoreException();
       if (value.isBoss) bosses++;
 
-      handled.push(new CustomEntity(value, value.name === this.localPlayer));
+      handled.push(new CustomEntity(value));
       log.debug("Handled entity", value.name ?? value.npcId, value.id, this.getType(value))
     }
     if (bosses === 0) throw new NoBossEntityException();
 
-    const handledLocalPlayer = handled.find((e) => e.isLocalPlayer);
+    const handledLocalPlayer = handled.find((e) => e.id === this.localPlayer);
     if (!handledLocalPlayer) throw new NoLocalPlayerException();
 
     return handled;
@@ -159,7 +163,6 @@ export class Upload {
 }
 
 export class CustomEntity implements Entity {
-  isLocalPlayer: boolean;
   lastUpdate: number;
   id: string;
   npcId: number;
@@ -194,8 +197,7 @@ export class CustomEntity implements Entity {
   shieldDoneBy: { [key: number]: number };
   shieldReceivedBy: { [key: number]: number };
 
-  constructor(entity: Data.EntityState, isLocalPlayer: boolean) {
-    this.isLocalPlayer = isLocalPlayer;
+  constructor(entity: Data.EntityState) {
     this.lastUpdate = entity.lastUpdate;
     this.id = entity.id;
     this.npcId = entity.npcId;
